@@ -1,0 +1,85 @@
+function Modify-FileACL 
+{
+    Param
+    (
+    [Parameter(Position=0, Mandatory=$false)]
+    [string]$File,
+
+    [Parameter(Position=1, Mandatory=$false)]
+    [string]$UserOrGroup,
+
+    [Parameter(Position=2, Mandatory=$false)]
+    [string]$RightsList,
+
+    [Parameter(Position=3, Mandatory=$false)]
+    [string]$AllowOrDeny = "Allow",
+
+    [Parameter(Position=4,Mandatory=$false)]
+    [switch]$ListRights,
+    
+    [Parameter(Position=5, Mandatory=$false)]
+    [switch]$Help
+    )
+    #Validating User input exists
+    IF($UserOrGroup -eq "")
+        {$global:BadValueCount++}
+    IF($RightsList -eq "")
+        {$global:BadValueCount++}
+
+    IF(($ListRights -eq $false) -and ($BadValueCount -lt 1))
+        {
+
+        $FileAcl = Get-Acl -Path $File
+
+        $AccessRule = New-Object System.Security.AccessControl.FileSystemAccessRule($UserOrGroup, $RightsList, $AllowOrDeny)
+
+        $FileAcl.SetAccessRule($AccessRule)
+
+        $FileAcl | Set-Acl -Path $File
+
+        Get-Acl -Path $File
+        
+        }
+
+    ElseIF($ListRights -eq $true)
+        {
+        Write-Host "
+        These are the file rights that you can specify in the 'RightsList' variable:
+        
+        Right                      SyntaxToUse
+        `````````````````````                 ``````````````````````             
+        Full Control               FullControl 
+        Traverse Folder/ Execute   ExecuteFile
+        List Folder / Read Data    ReadData
+        Read Attributes            ReadAttributes
+        Read Extended Attributes   ReadExtendedAttributes
+        Create Files / Write Data  CreateFiles
+        Create Folders / Add Data  Append Data
+        Write Attributes           WriteAttributes
+        Write Extended Attributes  WriteExtendedAttributes
+        Delete Subfolders & Files  DeleteSubdirectoriesAndFiles
+        Delete                     Delete
+        Read Permissions           ReadPermissions
+        "
+        }
+    ElseIF($Help -eq $true)
+        {Write-Host "
+        File specifies the file to add ACE to. 
+        UserOrGroup specifies the User or Group permissions to modify for a file.
+        AllowOrDeny Deny entries can be added by changing to 'Deny'. Allow entries are the default.
+        RightsList is a list of file permissions to add for the specified file.
+        ListRights will display the options and syntax for for the $RightsList parameter.
+
+        Example: Modify-FileACL 'C:\Testfolder' 'Testuser' 'Deny' 'Fullcontrol, ExecuteFile' 
+        "
+        }
+
+    ElseIF($BadValueCount -gt 0)
+        {Write-Host "Please specify either -Help or -ListRights if not supplying values for File and UserOrGroup."}
+    Else
+        {Write-Host "Something went wrong."}
+}
+
+
+
+
