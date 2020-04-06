@@ -1,0 +1,105 @@
+### This script will go through each update in C:\Updates and assess each one to see if it is an update that this script is capable of applying. 
+#It starts by assessing if the update is a windows update. 
+#If the update registers as a Windows Update, it will then check to see if that update is present on the machine.
+#If the Windows Update is not already on the machine, the script will perform the update quietly and without restarting. It will wait until the update is finished before continuing.
+#If the Windows Update is already on the machine, the script will say so and then continue on with the assesment of the next update
+#If the Update appears to be an Adobe update the script will attempt to install the update quietly and with a taskbar
+#For Java Updates the script will see what current version of java is running and then install the patch if the version will be newer. It also will remove all oldversions of java.
+#After all updates have been assessed and/or completed, the script will prompt the user about the impending restart to the system. If the user does not abort within 60 seconds, the machine will reboot. 
+
+
+function Assessment($StageDirectory){
+    #Setting and confirming Windows Update is enabled
+    Set-Service -Name wuauserv -Status Running -StartupType Automatic
+    Get-Service -Name wuauserv
+    #Grabbing each update in the $StageDirectory and performing asessments
+    $Updates = (gci $StageDirectory)
+    foreach($update in $Updates)
+        {Write-Host "Checking to see if " $update " is a Windows update."
+        IF((($update.Extension -eq ".msu") -and ($update.Name.Contains("kb"))))
+            {PerformWinUpdate($update)}
+        ELSEIF((($update.Extension -eq ".msp") -and ($update.Name.Contains("Acro"))))
+            {PerformAdobeUpdate($update)}
+        ELSEIF((($update.Extension -eq ".exe") -and ($update.Name.Contains("jre"))))
+            {PerformJavaUpdate($update)}
+        Else
+            {Write-Host $update " does not meet any defined update criteria"}}
+    Write-Host $update "is the last update assessed. Assessment has been completed"}
+
+function PerformWinUpdate($update)
+    {Write-Host "Assessing if this update has been performed"
+    $update.ToString() -imatch "kb\w\w\w\w\w\w\w" | Out-Null
+    Try
+        {$ErrorActionPreference = 'Stop'
+        %{IF(Get-Hotfix -Id $Matches[0])
+            {Write-Host "Update has already been installed"}
+            }}
+    Catch
+        {Write-Host "This Update has not been previously installed on this system. Installing: " $update
+        wusa $update.FullName /quiet /norestart | Out-Null
+        Write-Host "Update has been completed."}
+    Finally{$ErrorActionPreference = 'Continue'}}
+
+function PerformAdobeUpdate($update)
+    {Write-Host "Performing Adobe Update " $update
+    Invoke-Command -ScriptBlock {msiexec.exe /p $update.FullName /qb} | Out-Null
+    Write-Host "Update has been completed."}
+
+function PerformJavaUpdate($update)
+{
+Write-Host "Assessing if this Java Update is newer"
+$ListOfPrograms = @()
+$Programs = gwmi -Class Win32_Product
+foreach($application in $Programs)
+    {
+    $ListOfPrograms.Add($application.name)
+    $RegexQuery = "Java.*64-bit"
+    IF($application -match "Updater")
+    {
+    $process = Start-Process -filepath $update.FullName -ArgumentList "/s REBOOT=ReallySuppress" -Wait -PassThru
+    $process.WaitForExit()        
+    }
+    Else
+        {
+        IF($application.Name -match $RegexQuery)
+            {
+            Write-Host $application.name "has been identified as a java 32bit program that is installed"
+            IF($application.version -lt $update.VersionInfo.fileversion)
+                {
+                Write-Host $update.Name "is a new 64-bit Java Update should be installed." 
+                $application.Uninstall()
+                $process = Start-Process -filepath $update.FullName -ArgumentList "/s REBOOT=ReallySuppress" -Wait -PassThru
+                $process.WaitForExit()
+                }
+            Else
+                {Write-Host "The 64-bit update," $update.name ",does not need to be applied"}
+            }
+        ElseIF($application.Name -match "Java")
+            {
+            IF($application.version -lt $update.VersionInfo.fileversion)
+                {
+                Write-Host $update.Name "is a new 32-bit Java Update should be installed." 
+                $application.Uninstall()
+                $process = Start-Process -filepath $update.FullName -ArgumentList "/s REBOOT=ReallySuppress" -Wait -PassThru
+                $process.WaitForExit()
+                }
+            Else
+                {Write-Host "The 32-bit update," $update.name ",does not need to be applied"}
+            }
+        }
+    }
+IF($ListOfPrograms -notcontains "Java")
+    {
+    $process = Start-Process -filepath $update.FullName -ArgumentList "/s REBOOT=ReallySuppress" -Wait -PassThru
+    $process.WaitForExit()
+    }
+}
+
+Assessment("C:\Updates")
+Write-Host "Restart pending. If you do not want to Restart please press Ctrl+C to terminate the script."
+timeout /t 60 
+gpupdate /force /sync /boot
+
+
+
+
