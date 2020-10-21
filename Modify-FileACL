@@ -3,7 +3,7 @@ function Modify-FileACL
     Param
     (
     [Parameter(Position=0, Mandatory=$false)]
-    [string]$File,
+    $File,
 
     [Parameter(Position=1, Mandatory=$false)]
     [string]$UserOrGroup,
@@ -28,7 +28,8 @@ function Modify-FileACL
 
     IF(($ListRights -eq $false) -and ($BadValueCount -lt 1))
         {
-
+        $file = $file.tostring()
+        
         $FileAcl = Get-Acl -Path $File
 
         $AccessRule = New-Object System.Security.AccessControl.FileSystemAccessRule($UserOrGroup, $RightsList, $AllowOrDeny)
