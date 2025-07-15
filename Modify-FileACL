@@ -32,7 +32,7 @@ function Modify-FileACL
         
         $FileAcl = Get-Acl -Path $File
 
-        $AccessRule = New-Object System.Security.AccessControl.FileSystemAccessRule($UserOrGroup, $RightsList, $AllowOrDeny)
+        $AccessRule = New-Object System.Security.AccessControl.FileSystemAccessRule($UserOrGroup, $RightsList, 'ContainerInherit, ObjectInherit', 'None', $AllowOrDeny)
 
         $FileAcl.SetAccessRule($AccessRule)
 
